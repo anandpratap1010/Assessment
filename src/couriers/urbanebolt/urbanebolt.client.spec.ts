@@ -62,4 +62,17 @@ describe('UrbaneBoltClient reliability', () => {
     expect(client.authentications).toBe(2);
     expect(operation).toHaveBeenCalledTimes(2);
   });
+
+  it('reuses a valid token and coalesces concurrent authentication', async () => {
+    const client = new TestClient(config);
+    const operation = jest.fn().mockResolvedValue({ data: { ok: true } });
+    await Promise.all([
+      client.executeAuthenticatedRequest(operation),
+      client.executeAuthenticatedRequest(operation),
+      client.executeAuthenticatedRequest(operation),
+    ]);
+    await client.executeAuthenticatedRequest(operation);
+    expect(client.authentications).toBe(1);
+    expect(operation).toHaveBeenCalledTimes(4);
+  });
 });

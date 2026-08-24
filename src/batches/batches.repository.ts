@@ -26,6 +26,24 @@ export class BatchesRepository {
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
   }
+
+  async markEnqueueFailed(batchRef: string, code: string, message: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const total = await tx.bulkBatchItem.count({ where: { batchRef } });
+      await tx.bulkBatchItem.updateMany({
+        where: { batchRef, status: BatchItemStatus.PENDING },
+        data: { status: BatchItemStatus.FAILED, errorCode: code, errorMessage: message },
+      });
+      await tx.bulkBatch.update({
+        where: { id: batchRef },
+        data: {
+          status: BatchStatus.FAILED,
+          completedOrders: total,
+          failedOrders: total,
+        },
+      });
+    });
+  }
   markProcessing(batchId: string, orderId: string) {
     return this.prisma.bulkBatchItem.update({
       where: { batchRef_orderId: { batchRef: batchId, orderId } },

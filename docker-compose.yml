@@ -5,18 +5,18 @@ services:
       POSTGRES_DB: courier_platform
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports: ["5432:5432"]
+    ports: ['5432:5432']
     volumes: [postgres_data:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d courier_platform"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d courier_platform']
       interval: 5s
       timeout: 3s
       retries: 10
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ['6379:6379']
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -28,11 +28,12 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/courier_platform
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
       COURIER_TIMEOUT_MS: 10000
       COURIER_MAX_RETRIES: 3
       COURIER_RETRY_BASE_DELAY_MS: 500
       BULK_WORKER_CONCURRENCY: 10
-    ports: ["3000:3000"]
+    ports: ['3000:3000']
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

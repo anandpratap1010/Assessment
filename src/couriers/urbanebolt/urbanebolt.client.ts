@@ -8,6 +8,7 @@ type Token = { value: string; expiresAt: number };
 export class UrbaneBoltClient {
   private readonly http: AxiosInstance;
   private token?: Token;
+  private authenticationPromise?: Promise<Token>;
   constructor(private readonly config: ConfigService) {
     this.http = axios.create({
       baseURL: config.get<string>('urbanebolt.baseUrl'),
@@ -22,7 +23,12 @@ export class UrbaneBoltClient {
   }
   private async getToken(force = false): Promise<string> {
     if (!force && this.token && this.token.expiresAt > Date.now() + 5000) return this.token.value;
-    this.token = await this.authenticate();
+    if (!this.authenticationPromise) {
+      this.authenticationPromise = this.authenticate().finally(() => {
+        this.authenticationPromise = undefined;
+      });
+    }
+    this.token = await this.authenticationPromise;
     return this.token.value;
   }
   invalidateToken(): void {

@@ -28,13 +28,22 @@ export class ApiExceptionFilter implements ExceptionFilter {
       details = error.details;
     } else if (error instanceof HttpException) {
       status = error.getStatus();
-      const body = error.getResponse() as any;
+      const responseBody = error.getResponse();
+      const body =
+        typeof responseBody === 'object' && responseBody !== null
+          ? (responseBody as { message?: unknown })
+          : undefined;
       if (status === 400) {
         code = ErrorCode.VALIDATION_ERROR;
         message = 'Request validation failed';
-        details = Array.isArray(body?.message) ? body.message : body;
+        details = Array.isArray(body?.message) ? body.message : responseBody;
       } else {
-        message = typeof body === 'string' ? body : (body?.message ?? message);
+        message =
+          typeof responseBody === 'string'
+            ? responseBody
+            : typeof body?.message === 'string'
+              ? body.message
+              : message;
       }
     }
     if (status >= 500)

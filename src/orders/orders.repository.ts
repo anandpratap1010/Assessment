@@ -12,7 +12,7 @@ export class OrdersRepository {
   async reserveOrder(
     orderId: string,
     courierPartner: string,
-    normalizedRequest: Prisma.InputJsonValue,
+    normalizedRequest: unknown,
     requestHash: string,
   ): Promise<ReserveResult> {
     try {
@@ -20,7 +20,7 @@ export class OrdersRepository {
         data: {
           orderId,
           courierPartner,
-          normalizedRequest,
+          normalizedRequest: normalizedRequest as Prisma.InputJsonValue,
           requestHash,
           processingState: ProcessingState.PROCESSING,
         },
@@ -101,6 +101,18 @@ export class OrdersRepository {
       data: {
         shipmentStatus: status as ShipmentStatus,
         courierResponsePayload: rawResponse as Prisma.InputJsonValue,
+        failureCode: null,
+        failureReason: null,
+      },
+    });
+  }
+  async recordOperationFailure(id: string, code: string, reason: string, raw?: unknown) {
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        failureCode: code,
+        failureReason: reason,
+        ...(raw !== undefined ? { courierResponsePayload: raw as Prisma.InputJsonValue } : {}),
       },
     });
   }
@@ -133,6 +145,8 @@ export class OrdersRepository {
       data: {
         shipmentStatus: ShipmentStatus.CANCELLED,
         courierResponsePayload: rawResponse as Prisma.InputJsonValue,
+        failureCode: null,
+        failureReason: null,
       },
     });
   }

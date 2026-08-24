@@ -44,11 +44,11 @@ Shipment status and processing state are separate enums. One represents parcel l
 
 ## Bulk processing
 
-Bulk input is validated before persistence and duplicate IDs are rejected. The API creates one item and BullMQ job per order and responds with `202`. Worker concurrency is bounded by configuration. Each worker invokes the same idempotent `OrdersService.createOrder` flow, then transactionally changes the item and increments batch counters. This gives fast responses and isolated failures at the cost of Redis and eventual consistency.
+Bulk input and courier names are validated before persistence and duplicate IDs are rejected. The API creates one item and BullMQ job per order and responds with `202`. If Redis enqueueing fails after persistence, the batch and pending items are transactionally marked failed. Worker concurrency is bounded by configuration. Each worker invokes the same idempotent `OrdersService.createOrder` flow, then transactionally changes the item and increments batch counters. This gives fast responses and isolated failures at the cost of Redis and eventual consistency.
 
 ## Error handling and reliability
 
-Errors share a code/message/details envelope and request ID. Courier-native responses remain audit data. The UrbaneBolt client has configurable timeout, exponential retry for network/5xx failures, no retry for ordinary 4xx, cached-token invalidation, and exactly one authentication refresh. Actual authentication and operation formats are intentionally absent until documented.
+Errors share a code/message/details envelope and request ID. Courier-native responses remain audit data. The UrbaneBolt client has configurable timeout, exponential retry for network/5xx failures, no retry for ordinary 4xx, cached-token invalidation, coalesced concurrent authentication, and exactly one authentication refresh. Tracking and cancellation failures are retained without incorrectly changing shipment lifecycle status. Actual authentication and operation formats are intentionally absent until documented.
 
 ## Security
 
@@ -56,7 +56,7 @@ Secrets come from environment variables and are excluded from source control. Lo
 
 ## Trade-offs
 
-- The worker shares the API process for simple local operation; separate scaling would use a dedicated bootstrap.
+- The worker shares the API process for simple local operation; separate scaling would use a dedicated bootstrap. Request IDs are copied into job data so worker failures remain correlated.
 - Batch results are polled rather than pushed.
 - Audit JSON improves supportability but needs access control and retention policies.
 - Tracking deduplication hashes event content; a documented courier event ID would be preferable.

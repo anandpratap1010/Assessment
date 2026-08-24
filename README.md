@@ -38,7 +38,7 @@ Swagger is available at `http://localhost:3000/api/docs`.
 | -------------------------------------------- | ------------------------------------------- | -------------------------------- |
 | `PORT`                                       | HTTP port                                   | `3000`                           |
 | `DATABASE_URL`                               | PostgreSQL connection URL                   | See `.env.example`               |
-| `REDIS_HOST`, `REDIS_PORT`                   | BullMQ connection                           | `localhost`, `6379`              |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | BullMQ connection; password is optional     | `localhost`, `6379`, empty       |
 | `URBANEBOLT_BASE_URL`                        | UAT base URL                                | Empty until contract is supplied |
 | `URBANEBOLT_USERNAME`, `URBANEBOLT_PASSWORD` | UAT credentials                             | Optional at startup              |
 | `COURIER_TIMEOUT_MS`                         | Courier timeout                             | `10000`                          |
@@ -53,10 +53,25 @@ npm run build
 npm run lint
 npm test
 npm run test:e2e
+npm run test:integration
 npm run prisma:migrate
 ```
 
-The unit and HTTP contract tests do not require external services. Runtime/manual tests use PostgreSQL and Redis.
+The unit and HTTP contract tests do not require external services. `npm run test:integration` exercises the running application against PostgreSQL, Redis, and BullMQ; start the Docker stack first.
+
+## Public endpoints
+
+| Method | Path                             | Purpose                                      |
+| ------ | -------------------------------- | -------------------------------------------- |
+| `POST` | `/api/v1/orders`                 | Create an idempotent shipment                |
+| `GET`  | `/api/v1/orders`                 | Paginated order list                         |
+| `GET`  | `/api/v1/orders/:orderId/track`  | Refresh normalized tracking                  |
+| `POST` | `/api/v1/orders/:orderId/cancel` | Idempotently cancel a shipment               |
+| `POST` | `/api/v1/orders/bulk`            | Validate, persist, and queue 1-100 orders    |
+| `GET`  | `/api/v1/batches/:batchId`       | Return batch counters and item results       |
+| `GET`  | `/health`                        | Check the application, PostgreSQL, and Redis |
+
+Successful responses use `{ "success": true, "data": ..., "request_id": "..." }`. Errors use `{ "success": false, "error": { "code": "...", "message": "...", "details": ... }, "request_id": "..." }`. Validation details contain field-level messages; courier-native errors and raw payloads are never returned.
 
 ## API examples
 
@@ -89,7 +104,11 @@ The request hash uses canonical JSON and SHA-256. A real courier idempotency key
 
 ## Bulk processing
 
-The endpoint validates all items, persists the batch, queues one job per order, and returns `202`. Workers reuse `OrdersService`. Item completion and counters update transactionally; batch status becomes `COMPLETED`, `PARTIALLY_COMPLETED`, or `FAILED`. Running the worker in the API process keeps this assessment simple; it can be moved into a separate process later.
+The endpoint validates all items and courier names, persists the batch, queues one job per order, and returns `202`. Workers reuse `OrdersService`, propagate the originating request ID, and run at bounded concurrency. Item completion and counters update transactionally; batch status becomes `COMPLETED`, `PARTIALLY_COMPLETED`, or `FAILED`. If enqueueing fails, the persisted batch and items are marked failed instead of remaining stuck. Running the worker in the API process keeps this assessment simple; it can be moved into a separate process later.
+
+## Reliability and request correlation
+
+Courier timeout, retry count, and exponential-backoff delay come from the environment. Network failures, timeouts, and 5xx responses are retried; ordinary 4xx responses are not. A 401 invalidates the cached token, coalesces concurrent authentication attempts, and retries the original operation exactly once. Incoming `X-Request-ID` values are reused, otherwise a UUID is generated. The ID is returned in the header/body and carried into bulk jobs and structured failure logs.
 
 ## Adding a courier
 
@@ -103,7 +122,7 @@ No changes are required to `OrdersController`, the `OrdersService` business cont
 
 ## UrbaneBolt integration status
 
-The UrbaneBolt integration skeleton is implemented, but actual UAT endpoint and payload mappings require the supplied UrbaneBolt API contract. Timeout, transient retry, token caching/invalidation, and one-time 401 refresh structure exist and are unit tested. Authentication and courier operations deliberately return `COURIER_CONFIGURATION_ERROR`; they have not been verified against UrbaneBolt.
+The UrbaneBolt integration skeleton is implemented, but actual UAT endpoint and payload mappings require the supplied UrbaneBolt API contract. Timeout, selective retry, coalesced token caching/invalidation, and one-time 401 refresh structure exist and are unit tested. Authentication and courier operations deliberately return `COURIER_CONFIGURATION_ERROR`; they have not been verified against UrbaneBolt.
 
 Blocked contract details: authentication, create shipment, tracking, cancellation, and status/error mappings.
 
@@ -113,4 +132,4 @@ Blocked contract details: authentication, create shipment, tracking, cancellatio
 - Tracking is pull-based; webhooks are not implemented.
 - Raw courier payloads contain customer data and need a retention policy in production.
 - Batch status uses polling and has no pagination because a batch is capped at 100 items.
-- The automated e2e suite verifies HTTP contracts with mocked application services; Docker-backed workflows are manual integration checks.
+- The e2e suite verifies HTTP contracts with mocked application services. `test:integration` provides Docker-backed create/idempotency/conflict/list/track/cancel/bulk/health coverage.

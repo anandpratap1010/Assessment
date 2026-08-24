@@ -1,4 +1,4 @@
-import { ProcessingState, ShipmentStatus } from '@prisma/client';
+import { ProcessingState, ShipmentStatus, type Order } from '@prisma/client';
 import { ErrorCode } from '../common/errors/error-code';
 import { MockCourierAdapter } from '../couriers/mock/mock-courier.adapter';
 import { CourierRegistry } from '../couriers/courier-registry.service';
@@ -57,6 +57,7 @@ describe('OrdersService', () => {
       updateStatus: jest.fn(),
       appendTrackingEvent: jest.fn(),
       markCancelled: jest.fn(),
+      recordOperationFailure: jest.fn(),
     };
     service = new OrdersService(repository, new CourierRegistry([new MockCourierAdapter()]));
   });
@@ -124,5 +125,54 @@ describe('OrdersService', () => {
     await expect(service.cancelOrder('ORD-1')).resolves.toMatchObject({ status: 'CANCELLED' });
     expect(repository.markCancelled).toHaveBeenCalled();
     expect(repository.appendTrackingEvent).toHaveBeenCalled();
+  });
+  it('allows only one courier call for concurrent identical submissions', async () => {
+    let stored: Order | undefined;
+    const concurrentRepository: any = {
+      reserveOrder: jest
+        .fn()
+        .mockImplementation(
+          async (_orderId: string, _partner: string, _request: unknown, requestHash: string) => {
+            if (stored) return { acquired: false, order: stored };
+            stored = {
+              ...baseOrder,
+              courierOrderId: null,
+              awbNumber: null,
+              processingState: ProcessingState.PROCESSING,
+              requestHash,
+            };
+            return { acquired: true, order: stored };
+          },
+        ),
+      markCreated: jest.fn().mockImplementation(async (_id: string, result: any) => {
+        stored = {
+          ...stored!,
+          courierOrderId: result.courierOrderId,
+          awbNumber: result.awbNumber,
+          processingState: ProcessingState.COMPLETED,
+        };
+        return stored;
+      }),
+      markFailed: jest.fn(),
+    };
+    const adapter = new MockCourierAdapter();
+    const courierCall = jest.spyOn(adapter, 'createShipment').mockImplementation(async (order) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return new MockCourierAdapter().createShipment(order);
+    });
+    const concurrentService = new OrdersService(
+      concurrentRepository,
+      new CourierRegistry([adapter]),
+    );
+    const results = await Promise.allSettled([
+      concurrentService.createOrder(dto),
+      concurrentService.createOrder(dto),
+      concurrentService.createOrder(dto),
+      concurrentService.createOrder(dto),
+    ]);
+    expect(courierCall).toHaveBeenCalledTimes(1);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(3);
+    expect(stored?.processingState).toBe(ProcessingState.COMPLETED);
   });
 });
