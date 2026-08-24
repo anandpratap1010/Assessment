@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShipmentStatus {
+  CREATED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum ProcessingState {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum BatchStatus {
+  PROCESSING
+  COMPLETED
+  PARTIALLY_COMPLETED
+  FAILED
+}
+
+enum BatchItemStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+model Order {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @unique @map("order_id")
+  courierPartner String @map("courier_partner")
+  courierOrderId String? @map("courier_order_id")
+  awbNumber String? @map("awb_number")
+  shipmentStatus ShipmentStatus @default(CREATED) @map("shipment_status")
+  processingState ProcessingState @default(PENDING) @map("processing_state")
+  normalizedRequest Json @map("normalized_request")
+  requestHash String @map("request_hash")
+  courierRequestPayload Json? @map("courier_request_payload")
+  courierResponsePayload Json? @map("courier_response_payload")
+  failureCode String? @map("failure_code")
+  failureReason String? @map("failure_reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  trackingEvents TrackingEvent[]
+  batchItems BulkBatchItem[]
+  @@index([courierPartner])
+  @@index([awbNumber])
+  @@map("orders")
+}
+
+model TrackingEvent {
+  id String @id @default(uuid()) @db.Uuid
+  orderRef String @map("order_ref") @db.Uuid
+  order Order @relation(fields: [orderRef], references: [id], onDelete: Cascade)
+  status ShipmentStatus
+  courierStatus String? @map("courier_status")
+  rawPayload Json @map("raw_payload")
+  eventTimestamp DateTime @map("event_timestamp")
+  eventFingerprint String @map("event_fingerprint")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([orderRef, eventFingerprint])
+  @@index([orderRef, eventTimestamp])
+  @@map("tracking_events")
+}
+
+model BulkBatch {
+  id String @id @default(uuid()) @db.Uuid
+  batchId String @unique @map("batch_id")
+  status BatchStatus @default(PROCESSING)
+  totalOrders Int @map("total_orders")
+  completedOrders Int @default(0) @map("completed_orders")
+  successfulOrders Int @default(0) @map("successful_orders")
+  failedOrders Int @default(0) @map("failed_orders")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  items BulkBatchItem[]
+  @@map("bulk_batches")
+}
+
+model BulkBatchItem {
+  id String @id @default(uuid()) @db.Uuid
+  batchRef String @map("batch_ref") @db.Uuid
+  batch BulkBatch @relation(fields: [batchRef], references: [id], onDelete: Cascade)
+  orderId String @map("order_id")
+  courierPartner String @map("courier_partner")
+  status BatchItemStatus @default(PENDING)
+  orderRef String? @map("order_ref") @db.Uuid
+  order Order? @relation(fields: [orderRef], references: [id], onDelete: SetNull)
+  errorCode String? @map("error_code")
+  errorMessage String? @map("error_message")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([batchRef, orderId])
+  @@index([orderId])
+  @@map("bulk_batch_items")
+}

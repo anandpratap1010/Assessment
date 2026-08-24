@@ -1,0 +1,33 @@
+{
+  "info": { "name": "Multi-Courier Integration", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "orderId", "value": "POSTMAN-1001" },
+    { "key": "batchId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Create mock order",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/v1/orders",
+        "body": { "mode": "raw", "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"courier_partner\": \"mock\",\n  \"pickup\": {\"name\":\"Warehouse\",\"phone\":\"9999999999\",\"address_line1\":\"1 Depot Road\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"postal_code\":\"560001\",\"country\":\"IN\"},\n  \"delivery\": {\"name\":\"Customer\",\"phone\":\"8888888888\",\"address_line1\":\"2 Market Road\",\"city\":\"Mysuru\",\"state\":\"Karnataka\",\"postal_code\":\"570001\",\"country\":\"IN\"},\n  \"package\": {\"weight\":1.5},\n  \"payment\": {\"type\":\"PREPAID\"}\n}" }
+      }
+    },
+    { "name": "Track order", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/track" } },
+    { "name": "Cancel order", "request": { "method": "POST", "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/cancel" } },
+    {
+      "name": "Create bulk batch",
+      "event": [{ "listen": "test", "script": { "exec": ["const json = pm.response.json();", "if (json.data && json.data.batch_id) pm.collectionVariables.set('batchId', json.data.batch_id);"] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/v1/orders/bulk",
+        "body": { "mode": "raw", "raw": "{\"orders\":[{\"order_id\":\"BULK-POSTMAN-1\",\"courier_partner\":\"mock\",\"pickup\":{\"name\":\"Warehouse\",\"phone\":\"9999999999\",\"address_line1\":\"1 Depot Road\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"postal_code\":\"560001\",\"country\":\"IN\"},\"delivery\":{\"name\":\"Customer\",\"phone\":\"8888888888\",\"address_line1\":\"2 Market Road\",\"city\":\"Mysuru\",\"state\":\"Karnataka\",\"postal_code\":\"570001\",\"country\":\"IN\"},\"package\":{\"weight\":1}}]}" }
+      }
+    },
+    { "name": "Get batch", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/batches/{{batchId}}" } },
+    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } }
+  ]
+}
