@@ -49,6 +49,7 @@ describe('OrdersService', () => {
   let service: OrdersService;
   beforeEach(() => {
     repository = {
+      list: jest.fn(),
       reserveOrder: jest.fn(),
       findByOrderId: jest.fn(),
       markCreated: jest.fn(),
@@ -58,6 +59,13 @@ describe('OrdersService', () => {
       markCancelled: jest.fn(),
     };
     service = new OrdersService(repository, new CourierRegistry([new MockCourierAdapter()]));
+  });
+  it('returns a paginated normalized order list', async () => {
+    repository.list.mockResolvedValue({ orders: [baseOrder], total: 1 });
+    await expect(service.listOrders({ page: 1, limit: 20 })).resolves.toEqual({
+      orders: [expect.objectContaining({ order_id: 'ORD-1', courier_partner: 'mock' })],
+      pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
+    });
   });
   it('creates and persists a shipment', async () => {
     repository.reserveOrder.mockResolvedValue({

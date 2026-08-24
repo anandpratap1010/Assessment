@@ -5,6 +5,7 @@ import { ErrorCode } from '../common/errors/error-code';
 import { CourierRegistry } from '../couriers/courier-registry.service';
 import { NormalizedOrder, ShipmentStatus } from '../couriers/courier.types';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { OrdersRepository } from './orders.repository';
 import { createRequestHash } from './request-hash';
 @Injectable()
@@ -45,6 +46,23 @@ export class OrdersService {
       );
       throw appError;
     }
+  }
+  async listOrders(query: ListOrdersQueryDto) {
+    const { orders, total } = await this.repository.list({
+      page: query.page,
+      limit: query.limit,
+      courierPartner: query.courier_partner?.trim().toLowerCase(),
+      status: query.status,
+    });
+    return {
+      orders: orders.map((order) => this.toCreateResponse(order)),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        total_pages: Math.ceil(total / query.limit),
+      },
+    };
   }
   async trackOrder(orderId: string) {
     const order = await this.requireOrder(orderId);

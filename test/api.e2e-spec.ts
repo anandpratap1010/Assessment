@@ -14,7 +14,12 @@ import { OrdersController } from '../src/orders/orders.controller';
 import { OrdersService } from '../src/orders/orders.service';
 describe('Orders API (e2e HTTP contract)', () => {
   let app: INestApplication;
-  const orders = { createOrder: jest.fn(), trackOrder: jest.fn(), cancelOrder: jest.fn() };
+  const orders = {
+    createOrder: jest.fn(),
+    listOrders: jest.fn(),
+    trackOrder: jest.fn(),
+    cancelOrder: jest.fn(),
+  };
   const batches = { create: jest.fn(), get: jest.fn() };
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -85,6 +90,17 @@ describe('Orders API (e2e HTTP contract)', () => {
       .send({ order_id: '' })
       .expect(400);
     expect(response.body).toMatchObject({ success: false, error: { code: 'VALIDATION_ERROR' } });
+  });
+  it('lists orders with validated pagination', async () => {
+    orders.listOrders.mockResolvedValue({
+      orders: [{ order_id: 'E2E-1', courier_partner: 'mock', status: 'CREATED' }],
+      pagination: { page: 1, limit: 10, total: 1, total_pages: 1 },
+    });
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/orders?page=1&limit=10&courier_partner=mock')
+      .expect(200);
+    expect(response.body.data.orders).toHaveLength(1);
+    await request(app.getHttpServer()).get('/api/v1/orders?limit=101').expect(400);
   });
   it('tracks and cancels through normalized endpoints', async () => {
     orders.trackOrder.mockResolvedValue({ order_id: 'E2E-1', status: 'IN_TRANSIT', events: [] });

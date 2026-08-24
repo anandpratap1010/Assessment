@@ -38,6 +38,27 @@ export class OrdersRepository {
   findByOrderId(orderId: string) {
     return this.prisma.order.findUnique({ where: { orderId } });
   }
+  async list(options: {
+    page: number;
+    limit: number;
+    courierPartner?: string;
+    status?: ShipmentStatus;
+  }) {
+    const where: Prisma.OrderWhereInput = {
+      ...(options.courierPartner ? { courierPartner: options.courierPartner } : {}),
+      ...(options.status ? { shipmentStatus: options.status } : {}),
+    };
+    const [orders, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (options.page - 1) * options.limit,
+        take: options.limit,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { orders, total };
+  }
   async markCreated(
     id: string,
     result: {

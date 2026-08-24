@@ -34,17 +34,17 @@ Swagger is available at `http://localhost:3000/api/docs`.
 
 ## Environment variables
 
-| Variable | Purpose | Default/example |
-|---|---|---|
-| `PORT` | HTTP port | `3000` |
-| `DATABASE_URL` | PostgreSQL connection URL | See `.env.example` |
-| `REDIS_HOST`, `REDIS_PORT` | BullMQ connection | `localhost`, `6379` |
-| `URBANEBOLT_BASE_URL` | UAT base URL | Empty until contract is supplied |
-| `URBANEBOLT_USERNAME`, `URBANEBOLT_PASSWORD` | UAT credentials | Optional at startup |
-| `COURIER_TIMEOUT_MS` | Courier timeout | `10000` |
-| `COURIER_MAX_RETRIES` | Retries after the initial transient failure | `3` |
-| `COURIER_RETRY_BASE_DELAY_MS` | Initial exponential-backoff delay | `500` |
-| `BULK_WORKER_CONCURRENCY` | Concurrent bulk jobs per process | `10` |
+| Variable                                     | Purpose                                     | Default/example                  |
+| -------------------------------------------- | ------------------------------------------- | -------------------------------- |
+| `PORT`                                       | HTTP port                                   | `3000`                           |
+| `DATABASE_URL`                               | PostgreSQL connection URL                   | See `.env.example`               |
+| `REDIS_HOST`, `REDIS_PORT`                   | BullMQ connection                           | `localhost`, `6379`              |
+| `URBANEBOLT_BASE_URL`                        | UAT base URL                                | Empty until contract is supplied |
+| `URBANEBOLT_USERNAME`, `URBANEBOLT_PASSWORD` | UAT credentials                             | Optional at startup              |
+| `COURIER_TIMEOUT_MS`                         | Courier timeout                             | `10000`                          |
+| `COURIER_MAX_RETRIES`                        | Retries after the initial transient failure | `3`                              |
+| `COURIER_RETRY_BASE_DELAY_MS`                | Initial exponential-backoff delay           | `500`                            |
+| `BULK_WORKER_CONCURRENCY`                    | Concurrent bulk jobs per process            | `10`                             |
 
 ## Commands
 
@@ -67,6 +67,7 @@ curl -X POST http://localhost:3000/api/v1/orders -H "Content-Type: application/j
 ```
 
 ```bash
+curl "http://localhost:3000/api/v1/orders?page=1&limit=20&courier_partner=mock&status=CREATED"
 curl http://localhost:3000/api/v1/orders/ORD-1001/track
 curl -X POST http://localhost:3000/api/v1/orders/ORD-1001/cancel
 ```
@@ -113,4 +114,3 @@ Blocked contract details: authentication, create shipment, tracking, cancellatio
 - Raw courier payloads contain customer data and need a retention policy in production.
 - Batch status uses polling and has no pagination because a batch is capped at 100 items.
 - The automated e2e suite verifies HTTP contracts with mocked application services; Docker-backed workflows are manual integration checks.
-
