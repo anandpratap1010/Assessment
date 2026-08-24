@@ -5,6 +5,7 @@ export enum ShipmentStatus {
   DELIVERED = 'DELIVERED',
   CANCELLED = 'CANCELLED',
   FAILED = 'FAILED',
+  UNKNOWN = 'UNKNOWN',
 }
 export enum ProcessingState {
   PENDING = 'PENDING',
@@ -21,13 +22,22 @@ export interface NormalizedAddress {
   state: string;
   postal_code: string;
   country: string;
+  email?: string;
 }
 export interface NormalizedOrder {
   order_id: string;
   courier_partner: string;
   pickup: NormalizedAddress;
   delivery: NormalizedAddress;
-  package: { weight: number; length?: number; width?: number; height?: number };
+  package: {
+    weight: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    description?: string;
+    declared_value?: number;
+    quantity?: number;
+  };
   payment?: { type: 'PREPAID' | 'COD'; amount?: number };
   metadata?: Record<string, unknown>;
 }

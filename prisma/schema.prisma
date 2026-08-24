@@ -14,6 +14,7 @@ enum ShipmentStatus {
   DELIVERED
   CANCELLED
   FAILED
+  UNKNOWN
 }
 
 enum ProcessingState {

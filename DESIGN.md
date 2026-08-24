@@ -21,7 +21,7 @@ flowchart LR
     Worker --> OrdersService
 ```
 
-Controllers use normalized DTOs. `OrdersService` asks `CourierRegistry` for an adapter and has no partner conditionals. Each adapter owns mapping and raw transport data. The mock adapter is a complete second implementation; UrbaneBolt is a contract-safe skeleton pending its UAT specification.
+Controllers use normalized DTOs. `OrdersService` asks `CourierRegistry` for an adapter and has no partner conditionals. Each adapter owns mapping and raw transport data. The mock adapter is a complete second implementation. UrbaneBolt implements the published UAT authentication, manifest, tracking, and cancellation contract.
 
 ## Order creation and idempotency
 
@@ -48,7 +48,7 @@ Bulk input and courier names are validated before persistence and duplicate IDs 
 
 ## Error handling and reliability
 
-Errors share a code/message/details envelope and request ID. Courier-native responses remain audit data. The UrbaneBolt client has configurable timeout, exponential retry for network/5xx failures, no retry for ordinary 4xx, cached-token invalidation, coalesced concurrent authentication, and exactly one authentication refresh. Tracking and cancellation failures are retained without incorrectly changing shipment lifecycle status. Actual authentication and operation formats are intentionally absent until documented.
+Errors share a code/message/details envelope and request ID. Courier-native responses remain audit data. The UrbaneBolt client has configurable timeout, exponential retry for network/5xx failures, no retry for ordinary 4xx, cached-token invalidation, coalesced concurrent authentication, and exactly one authentication refresh. Tracking and cancellation failures are retained without incorrectly changing shipment lifecycle status. UrbaneBolt-specific fields and status codes are translated in its mapper and never exposed as public API contracts.
 
 ## Security
 

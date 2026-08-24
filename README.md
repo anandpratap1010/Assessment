@@ -34,17 +34,20 @@ Swagger is available at `http://localhost:3000/api/docs`.
 
 ## Environment variables
 
-| Variable                                     | Purpose                                     | Default/example                  |
-| -------------------------------------------- | ------------------------------------------- | -------------------------------- |
-| `PORT`                                       | HTTP port                                   | `3000`                           |
-| `DATABASE_URL`                               | PostgreSQL connection URL                   | See `.env.example`               |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | BullMQ connection; password is optional     | `localhost`, `6379`, empty       |
-| `URBANEBOLT_BASE_URL`                        | UAT base URL                                | Empty until contract is supplied |
-| `URBANEBOLT_USERNAME`, `URBANEBOLT_PASSWORD` | UAT credentials                             | Optional at startup              |
-| `COURIER_TIMEOUT_MS`                         | Courier timeout                             | `10000`                          |
-| `COURIER_MAX_RETRIES`                        | Retries after the initial transient failure | `3`                              |
-| `COURIER_RETRY_BASE_DELAY_MS`                | Initial exponential-backoff delay           | `500`                            |
-| `BULK_WORKER_CONCURRENCY`                    | Concurrent bulk jobs per process            | `10`                             |
+| Variable                                     | Purpose                                       | Default/example                 |
+| -------------------------------------------- | --------------------------------------------- | ------------------------------- |
+| `PORT`                                       | HTTP port                                     | `3000`                          |
+| `DATABASE_URL`                               | PostgreSQL connection URL                     | See `.env.example`              |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | BullMQ connection; password is optional       | `localhost`, `6379`, empty      |
+| `URBANEBOLT_BASE_URL`                        | UrbaneBolt API base URL                       | `https://uat.urbanebolt.in`     |
+| `URBANEBOLT_USERNAME`, `URBANEBOLT_PASSWORD` | Credentials supplied by UrbaneBolt            | Optional unless adapter is used |
+| `URBANEBOLT_CUSTOMER_CODE`                   | Manifest customer code supplied by UrbaneBolt | Optional unless adapter is used |
+| `URBANEBOLT_SERVICE_TYPE`                    | Manifest service type                         | `SDD`                           |
+| `RUN_URBANEBOLT_INTEGRATION_TESTS`           | Enables the external UAT test                 | `false`                         |
+| `COURIER_TIMEOUT_MS`                         | Courier timeout                               | `10000`                         |
+| `COURIER_MAX_RETRIES`                        | Retries after the initial transient failure   | `3`                             |
+| `COURIER_RETRY_BASE_DELAY_MS`                | Initial exponential-backoff delay             | `500`                           |
+| `BULK_WORKER_CONCURRENCY`                    | Concurrent bulk jobs per process              | `10`                            |
 
 ## Commands
 
@@ -54,10 +57,11 @@ npm run lint
 npm test
 npm run test:e2e
 npm run test:integration
+npm run test:urbanebolt
 npm run prisma:migrate
 ```
 
-The unit and HTTP contract tests do not require external services. `npm run test:integration` exercises the running application against PostgreSQL, Redis, and BullMQ; start the Docker stack first.
+The unit and HTTP contract tests do not require external services. `npm run test:integration` exercises the running application against PostgreSQL, Redis, and BullMQ; start the Docker stack first. `npm run test:urbanebolt` runs only when `RUN_URBANEBOLT_INTEGRATION_TESTS=true` and requires all UrbaneBolt variables; it creates a uniquely named UAT shipment and cancels it in cleanup.
 
 ## Public endpoints
 
@@ -80,6 +84,8 @@ Create:
 ```bash
 curl -X POST http://localhost:3000/api/v1/orders -H "Content-Type: application/json" -d '{"order_id":"ORD-1001","courier_partner":"mock","pickup":{"name":"Warehouse","phone":"9999999999","address_line1":"1 Depot Road","city":"Bengaluru","state":"Karnataka","postal_code":"560001","country":"IN"},"delivery":{"name":"Customer","phone":"8888888888","address_line1":"2 Market Road","city":"Mysuru","state":"Karnataka","postal_code":"570001","country":"IN"},"package":{"weight":1.5},"payment":{"type":"PREPAID"}}'
 ```
+
+For UrbaneBolt, use the same normalized endpoint with `courier_partner: "urbanebolt"` and include `package.length`, `package.width`, and `package.height`. Customer codes, service types, authentication fields, and UrbaneBolt-native names are supplied by configuration or the adapter rather than API consumers.
 
 ```bash
 curl "http://localhost:3000/api/v1/orders?page=1&limit=20&courier_partner=mock&status=CREATED"
@@ -120,16 +126,17 @@ Courier timeout, retry count, and exponential-backoff delay come from the enviro
 
 No changes are required to `OrdersController`, the `OrdersService` business contract, normalized DTOs, routes, or existing adapters.
 
-## UrbaneBolt integration status
+## UrbaneBolt integration
 
-The UrbaneBolt integration skeleton is implemented, but actual UAT endpoint and payload mappings require the supplied UrbaneBolt API contract. Timeout, selective retry, coalesced token caching/invalidation, and one-time 401 refresh structure exist and are unit tested. Authentication and courier operations deliberately return `COURIER_CONFIGURATION_ERROR`; they have not been verified against UrbaneBolt.
+The adapter implements the published [UrbaneBolt UAT contract](https://bit.ly/ease-commerce-assignment): token authentication, manifest/create, public tracking, and cancellation. Credentials and the customer code are required only when `courier_partner` is `urbanebolt`. UrbaneBolt also requires package length, width, and height; missing dimensions return a normalized validation error.
 
-Blocked contract details: authentication, create shipment, tracking, cancellation, and status/error mappings.
+Authentication, create, tracking, and cancellation request/response shapes were verified against UAT. A uniquely named verification shipment was cancelled immediately after creation. Timeout, selective retry, coalesced token caching/invalidation, and one-time 401 refresh behavior are unit tested. Real credentials are never committed.
 
 ## Assumptions and limitations
 
 - Consumer authentication is out of scope; this is assumed to be an internal API.
 - Tracking is pull-based; webhooks are not implemented.
+- UrbaneBolt status mapping covers documented and common lifecycle descriptions; unrecognized codes map to `UNKNOWN` while the raw value remains in audit history.
 - Raw courier payloads contain customer data and need a retention policy in production.
 - Batch status uses polling and has no pagination because a batch is capped at 100 items.
 - The e2e suite verifies HTTP contracts with mocked application services. `test:integration` provides Docker-backed create/idempotency/conflict/list/track/cancel/bulk/health coverage.

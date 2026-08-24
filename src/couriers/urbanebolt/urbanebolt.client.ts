@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-code';
+import { UrbaneBoltAuthResponse } from './urbanebolt.types';
 type Token = { value: string; expiresAt: number };
 @Injectable()
 export class UrbaneBoltClient {
@@ -16,10 +17,36 @@ export class UrbaneBoltClient {
     });
   }
   protected async authenticate(): Promise<Token> {
-    throw new AppError(
-      ErrorCode.COURIER_CONFIGURATION_ERROR,
-      'UrbaneBolt authentication contract is not configured',
-    );
+    const username = this.config.get<string>('urbanebolt.username', '').trim();
+    const password = this.config.get<string>('urbanebolt.password', '');
+    if (!this.config.get<string>('urbanebolt.baseUrl') || !username || !password)
+      throw new AppError(
+        ErrorCode.COURIER_CONFIGURATION_ERROR,
+        'UrbaneBolt base URL and credentials are not configured',
+      );
+    try {
+      const response = await this.retry(() =>
+        this.http.post<UrbaneBoltAuthResponse>('/api/v1/auth/getToken/', {
+          username,
+          password,
+        }),
+      );
+      if (!response.data.access_token)
+        throw new AppError(ErrorCode.COURIER_AUTH_FAILED, 'UrbaneBolt returned no access token');
+      const expiresAt = response.data.expires_in
+        ? Date.now() + response.data.expires_in * 1000
+        : response.data.expires
+          ? Date.parse(response.data.expires)
+          : Date.now();
+      return { value: response.data.access_token, expiresAt };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        ErrorCode.COURIER_AUTH_FAILED,
+        'UrbaneBolt authentication failed',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
   }
   private async getToken(force = false): Promise<string> {
     if (!force && this.token && this.token.expiresAt > Date.now() + 5000) return this.token.value;

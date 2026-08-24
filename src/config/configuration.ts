@@ -14,6 +14,8 @@ export default () => ({
     baseUrl: process.env.URBANEBOLT_BASE_URL ?? '',
     username: process.env.URBANEBOLT_USERNAME ?? '',
     password: process.env.URBANEBOLT_PASSWORD ?? '',
+    customerCode: process.env.URBANEBOLT_CUSTOMER_CODE ?? '',
+    serviceType: process.env.URBANEBOLT_SERVICE_TYPE ?? 'SDD',
   },
   bulkWorkerConcurrency: Number(process.env.BULK_WORKER_CONCURRENCY ?? 10),
 });

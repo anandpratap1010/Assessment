@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsObject,
@@ -20,12 +21,16 @@ export class AddressDto {
   @ApiProperty() @IsString() @IsNotEmpty() state!: string;
   @ApiProperty() @IsString() @IsNotEmpty() postal_code!: string;
   @ApiProperty() @IsString() @IsNotEmpty() country!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() email?: string;
 }
 export class PackageDto {
   @ApiProperty({ example: 1.5 }) @IsNumber() @IsPositive() weight!: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @IsPositive() length?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @IsPositive() width?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @IsPositive() height?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() @IsNotEmpty() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @IsPositive() declared_value?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() quantity?: number;
 }
 export enum PaymentType {
   PREPAID = 'PREPAID',

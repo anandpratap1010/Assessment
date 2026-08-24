@@ -10,6 +10,11 @@ import {
 import { urbaneboltContractUnavailable } from './urbanebolt.errors';
 import { UrbaneBoltClient } from './urbanebolt.client';
 import { UrbaneBoltMapper } from './urbanebolt.mapper';
+import {
+  UrbaneBoltCancelResponse,
+  UrbaneBoltCreateResponse,
+  UrbaneBoltTrackingResponse,
+} from './urbanebolt.types';
 @Injectable()
 export class UrbaneBoltAdapter implements CourierAdapter {
   readonly partner = 'urbanebolt';
@@ -18,14 +23,31 @@ export class UrbaneBoltAdapter implements CourierAdapter {
     private readonly mapper: UrbaneBoltMapper,
   ) {}
   async createShipment(order: NormalizedOrder): Promise<CreateShipmentResult> {
-    this.mapper.toCreateRequest(order);
-    void this.client;
-    throw urbaneboltContractUnavailable();
+    const payload = this.mapper.toCreateRequest(order);
+    const response = await this.client.request<UrbaneBoltCreateResponse>({
+      method: 'POST',
+      url: '/api/v1/services/manifest/',
+      data: payload,
+    });
+    return this.mapper.fromCreateResponse(response, payload);
   }
-  async trackShipment(_shipment: ShipmentReference): Promise<TrackingResult> {
-    throw urbaneboltContractUnavailable();
+  async trackShipment(shipment: ShipmentReference): Promise<TrackingResult> {
+    if (!shipment.awbNumber) throw urbaneboltContractUnavailable('Tracking requires an AWB number');
+    const response = await this.client.request<UrbaneBoltTrackingResponse>({
+      method: 'GET',
+      url: '/api/v1/services/tracking-pub/',
+      params: { awb: shipment.awbNumber },
+    });
+    return this.mapper.fromTrackingResponse(response);
   }
-  async cancelShipment(_shipment: ShipmentReference): Promise<CancelShipmentResult> {
-    throw urbaneboltContractUnavailable();
+  async cancelShipment(shipment: ShipmentReference): Promise<CancelShipmentResult> {
+    if (!shipment.awbNumber)
+      throw urbaneboltContractUnavailable('Cancellation requires an AWB number');
+    const response = await this.client.request<UrbaneBoltCancelResponse>({
+      method: 'POST',
+      url: '/api/v1/services/cancel/',
+      data: { awbs: shipment.awbNumber },
+    });
+    return this.mapper.fromCancelResponse(response);
   }
 }
